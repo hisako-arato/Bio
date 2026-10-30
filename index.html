@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#140e10">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="description" content="黄昏の村から生きて抜け出せ。肩越し視点のサバイバルホラー（体験版）">
+  <title>黄昏の村 体験版</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <!-- 遊んでいる間の表示 -->
+  <div id="hud" class="hidden">
+    <div class="tl">
+      <div class="hp"><div class="hpbar"><i id="hpbar"></i></div><span id="hptext">100</span></div>
+      <div class="herbs">ハーブ <b id="herbs">1</b></div>
+    </div>
+    <div class="tr">
+      <div class="weapon" id="weapon">ハンドガン</div>
+      <div class="ammo"><b id="mag">10</b><span>/</span><span id="reserve">20</span></div>
+      <div class="gold"><span id="gold">0</span> G</div>
+    </div>
+    <div class="tc">
+      <div id="objective"></div>
+      <div id="timer" class="hidden"></div>
+    </div>
+    <div id="bossbar" class="hidden"><span>大男</span><div><i id="bosshp"></i></div></div>
+    <div id="cross"></div>
+    <div id="prompt" class="hidden"></div>
+    <div id="hint" class="hidden"></div>
+    <div id="toasts"></div>
+    <div id="vignette"></div>
+    <div id="lowhp"></div>
+    <div id="mash" class="hidden">連打で振りほどけ！<i></i></div>
+  </div>
+
+  <!-- スマホの操作 -->
+  <div id="touch" class="hidden">
+    <div id="stick" class="stick"><i></i></div>
+    <div class="btns">
+      <button data-btn="fire" class="b-fire">撃つ</button>
+      <button data-btn="aim" class="b-aim">構え</button>
+      <button data-btn="reload" class="b-reload">弾込め</button>
+      <button data-btn="knife" class="b-knife">ナイフ</button>
+      <button data-btn="switch" class="b-switch hidden">持替</button>
+      <button data-btn="heal" class="b-heal">回復</button>
+      <button data-btn="action" class="b-action hidden">蹴る</button>
+    </div>
+    <button data-btn="pause" class="b-pause">Ⅱ</button>
+  </div>
+
+  <!-- 画面 -->
+  <div id="loading" class="screen">
+    <h1>黄昏の村</h1>
+    <p id="loadText">読み込んでいます……</p>
+    <div class="bar"><i id="loadBar"></i></div>
+  </div>
+  <div id="title" class="screen hidden">
+    <h1>黄昏の村</h1>
+    <p class="sub">体験版</p>
+    <div class="menu">
+      <button id="btnStart" class="primary">はじめる</button>
+      <button id="btnHowto">操作方法</button>
+      <button id="btnSettings">設定</button>
+    </div>
+    <p class="note">約10分で遊べる体験版です。横向きで遊んでください。</p>
+  </div>
+  <div id="howto" class="screen hidden">
+    <h2>操作方法</h2>
+    <div class="cols">
+      <div>
+        <h3>スマホ</h3>
+        <ul>
+          <li>左側をなぞる：移動（大きく倒すと走る）</li>
+          <li>右側をなぞる：視点を動かす</li>
+          <li>構え：構える／やめる（構えると狙いが少し吸い付く）</li>
+          <li>撃つ：構えていなければ構える。押したまま指を動かすと狙いも動く</li>
+          <li>蹴る：ひるんだ敵の近くで出るボタン。掴まれたら連打</li>
+        </ul>
+      </div>
+      <div>
+        <h3>PC</h3>
+        <ul>
+          <li>WASD：移動　Shift：走る</li>
+          <li>マウス：視点（画面をクリックで操作開始）</li>
+          <li>右クリック長押し：構える　左クリック：撃つ</li>
+          <li>R：弾込め　F：ナイフ　Q：武器を持ち替える　H：回復</li>
+          <li>E／Space：蹴る・調べる・話す（掴まれたら連打）　Esc：一時停止</li>
+        </ul>
+      </div>
+    </div>
+    <p class="tip">脚を撃つとひざをつき、頭を撃つとひるむ。ひるんだ敵は蹴り飛ばせる。倒れた敵にはナイフがよく効く。</p>
+    <div class="menu"><button class="back">戻る</button></div>
+  </div>
+  <div id="settings" class="screen hidden">
+    <h2>設定</h2>
+    <div class="form">
+      <label>視点の感度 <input type="range" id="setSens" min="0.3" max="2.5" step="0.1"> <span id="setSensV"></span></label>
+      <label>上下を反転 <input type="checkbox" id="setInvert"></label>
+      <label>狙いの補助 <input type="checkbox" id="setAssist"></label>
+      <label>血の表現 <select id="setBlood"><option value="high">多い</option><option value="low">少ない</option><option value="off">なし</option></select></label>
+      <label>画質 <select id="setQuality"><option value="auto">自動</option><option value="low">軽い（スマホ向け）</option><option value="high">きれい（PC向け）</option></select></label>
+      <label>音量 <input type="range" id="setVolume" min="0" max="1" step="0.05"></label>
+      <p class="hint">画質の変更は、次に読み込み直したときに反映されます。</p>
+    </div>
+    <div class="menu"><button class="back">戻る</button></div>
+  </div>
+  <div id="intro" class="screen hidden">
+    <div class="story">
+      <p>行方不明になった調査員の足取りを追って、地図にない山あいの村へ来た。</p>
+      <p>日が沈みかけている。村は静まり返っているのに、どこかで誰かがうめいている。</p>
+      <p class="goal">村を抜けて、丘の上の教会へ向かえ。</p>
+    </div>
+    <div class="menu"><button id="btnGo" class="primary">進む</button></div>
+  </div>
+  <div id="pause" class="screen hidden">
+    <h2>一時停止</h2>
+    <div class="menu">
+      <button id="btnResume" class="primary">再開</button>
+      <button id="btnPHowto">操作方法</button>
+      <button id="btnPSettings">設定</button>
+      <button id="btnRetry">最後の場所からやり直す</button>
+      <button id="btnQuit">タイトルへ</button>
+    </div>
+  </div>
+  <div id="shop" class="screen hidden">
+    <h2>商人</h2>
+    <p class="say" id="shopSay">「よう、旅の人……何か要るかい？」</p>
+    <p class="wallet">所持金 <b id="shopGold">0</b> G</p>
+    <div id="shopList"></div>
+    <div class="menu"><button id="btnShopClose" class="primary">立ち去る</button></div>
+  </div>
+  <div id="death" class="screen hidden">
+    <h1 class="dead">YOU ARE DEAD</h1>
+    <div class="menu">
+      <button id="btnContinue" class="primary">コンティニュー</button>
+      <button id="btnDeathQuit">タイトルへ</button>
+    </div>
+  </div>
+  <div id="result" class="screen hidden">
+    <h2>体験版クリア</h2>
+    <p class="sub">教会の扉の向こうへ――続きは製品版で。</p>
+    <div id="resultBody"></div>
+    <div class="menu"><button id="btnResultTitle" class="primary">タイトルへ</button></div>
+  </div>
+  <div id="rotate" class="hidden"><p>端末を横向きにしてください</p></div>
+  <div id="error" class="screen hidden"><h2>動かせませんでした</h2><p id="errorText"></p></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

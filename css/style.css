@@ -1,0 +1,122 @@
+:root {
+  --bg: #140e10;
+  --panel: rgba(20, 14, 16, 0.88);
+  --ink: #eadfd2;
+  --dim: #a8988a;
+  --red: #c8281e;
+  --gold: #d8b04a;
+  --green: #5ab04a;
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink);
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif; user-select: none; -webkit-user-select: none; touch-action: none; overscroll-behavior: none; }
+canvas#view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.hidden { display: none !important; }
+button { font: inherit; color: inherit; }
+
+/* ---- 画面 ---- */
+.screen { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: calc(16px + var(--safe-t)) calc(16px + var(--safe-r)) calc(16px + var(--safe-b)) calc(16px + var(--safe-l));
+  background: radial-gradient(ellipse at 50% 40%, rgba(60, 20, 20, 0.55), rgba(10, 6, 8, 0.96)); overflow-y: auto; text-align: center; }
+#title, #loading { background: radial-gradient(ellipse at 50% 35%, rgba(90, 40, 30, 0.5), rgba(10, 6, 8, 0.92)); }
+.screen h1 { font-size: clamp(36px, 8vw, 72px); letter-spacing: 0.25em; margin: 0 0 4px; color: #e8d6c0;
+  text-shadow: 0 0 18px rgba(200, 40, 30, 0.6), 0 2px 0 #000; font-weight: 600; }
+.screen h1.dead { color: var(--red); letter-spacing: 0.12em; font-family: Georgia, serif; }
+.screen h2 { font-size: 26px; letter-spacing: 0.2em; margin: 0 0 12px; }
+.screen h3 { font-size: 16px; margin: 6px 0; color: var(--gold); }
+.sub { color: var(--dim); letter-spacing: 0.4em; margin: 0 0 22px; }
+.note, .hint, .tip { color: var(--dim); font-size: 13px; max-width: 560px; }
+.menu { display: flex; flex-direction: column; gap: 10px; min-width: 220px; margin-top: 14px; }
+.menu button, #shopList button { background: rgba(40, 26, 26, 0.85); border: 1px solid #5a3a32; padding: 11px 20px; border-radius: 4px; font-size: 16px; letter-spacing: 0.15em; cursor: pointer; }
+.menu button:hover, #shopList button:hover { border-color: #a85a4a; }
+.menu button.primary { background: #6a1a16; border-color: #b8443a; }
+.bar { width: min(320px, 70vw); height: 4px; background: #3a2a2a; margin-top: 10px; }
+.bar i { display: block; height: 100%; width: 0; background: var(--red); transition: width .2s; }
+.cols { display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; text-align: left; max-width: 820px; }
+.cols ul { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.7; }
+.form { display: flex; flex-direction: column; gap: 12px; text-align: left; min-width: min(360px, 90vw); }
+.form label { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.form select, .form input[type=range] { flex: 1; max-width: 200px; }
+.story { max-width: 600px; font-size: 17px; line-height: 2; text-align: left; }
+.story .goal { color: var(--gold); }
+
+/* 商人 */
+#shop .say { color: var(--dim); font-style: italic; margin: 0 0 6px; }
+#shop .wallet { margin: 0 0 10px; }
+#shop .wallet b { color: var(--gold); }
+#shopList { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px; width: min(760px, 100%); }
+#shopList button { display: flex; justify-content: space-between; align-items: center; text-align: left; letter-spacing: 0.05em; font-size: 15px; }
+#shopList button small { display: block; color: var(--dim); font-size: 12px; }
+#shopList button .price { color: var(--gold); white-space: nowrap; margin-left: 10px; }
+#shopList button:disabled { opacity: 0.4; }
+
+/* 結果 */
+#resultBody { display: grid; grid-template-columns: auto auto; gap: 4px 24px; font-size: 16px; margin-bottom: 8px; text-align: left; }
+#resultBody .rank { grid-column: 1 / -1; text-align: center; font-size: 54px; color: var(--gold); margin-top: 6px; }
+
+/* ---- 遊んでいる間 ---- */
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; text-shadow: 0 1px 2px #000, 0 0 6px #000; }
+#hud .tl { position: absolute; left: calc(14px + var(--safe-l)); top: calc(10px + var(--safe-t)); }
+#hud .tr { position: absolute; right: calc(64px + var(--safe-r)); top: calc(10px + var(--safe-t)); text-align: right; }
+#hud .tc { position: absolute; left: 50%; top: calc(10px + var(--safe-t)); transform: translateX(-50%); text-align: center; width: 46vw; }
+.hp { display: flex; align-items: center; gap: 8px; }
+.hpbar { width: 160px; height: 10px; background: rgba(0, 0, 0, 0.55); border: 1px solid rgba(255, 255, 255, 0.25); }
+.hpbar i { display: block; height: 100%; width: 100%; background: linear-gradient(#7ad05a, #3a9a3a); transition: width .25s; }
+.hpbar i.mid { background: linear-gradient(#e0c04a, #b08a2a); }
+.hpbar i.low { background: linear-gradient(#e0504a, #a0201a); }
+#hptext { font-size: 13px; color: var(--dim); }
+.herbs { font-size: 13px; margin-top: 4px; color: #9ad08a; }
+.weapon { font-size: 13px; color: var(--dim); letter-spacing: 0.1em; }
+.ammo { font-size: 26px; font-family: Georgia, serif; }
+.ammo b { font-size: 32px; }
+.ammo b.empty { color: var(--red); }
+.ammo span { color: var(--dim); font-size: 18px; margin-left: 4px; }
+.gold { font-size: 13px; color: var(--gold); }
+#objective { font-size: 15px; letter-spacing: 0.1em; color: #e8d6c0; }
+#timer { font-size: 30px; font-family: Georgia, serif; color: #f0c0a0; margin-top: 2px; }
+#bossbar { position: absolute; left: 50%; bottom: calc(18px + var(--safe-b)); transform: translateX(-50%); display: flex; align-items: center; gap: 10px; font-size: 14px; letter-spacing: 0.2em; }
+#bossbar div { width: min(380px, 50vw); height: 8px; background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.3); }
+#bossbar i { display: block; height: 100%; background: linear-gradient(#d04a3a, #801a12); transition: width .2s; }
+#cross { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: rgba(255, 255, 255, 0.55); box-shadow: 0 0 2px #000; }
+#cross.aim { opacity: 0; }
+#prompt { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 220, 160, 0.5); padding: 6px 16px; border-radius: 3px; font-size: 16px; letter-spacing: 0.1em; }
+#hint { position: absolute; left: 50%; top: calc(84px + var(--safe-t)); transform: translateX(-50%); background: rgba(10, 6, 8, 0.75); padding: 8px 18px; border-left: 3px solid var(--gold); font-size: 15px; max-width: 70vw; }
+#toasts { position: absolute; left: calc(14px + var(--safe-l)); top: 80px; display: flex; flex-direction: column; gap: 4px; }
+#toasts div { background: rgba(10, 6, 8, 0.7); padding: 4px 12px; font-size: 14px; animation: toast 2.6s forwards; border-left: 2px solid var(--green); }
+@keyframes toast { 0% { opacity: 0; transform: translateX(-10px); } 10% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
+#vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 45%, rgba(160, 0, 0, 0.75)); opacity: 0; transition: opacity .5s; }
+#lowhp { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 55%, rgba(120, 0, 0, 0.5)); opacity: 0; }
+#mash { position: absolute; left: 50%; top: 40%; transform: translateX(-50%); font-size: 24px; color: #ffd0a0; letter-spacing: 0.15em; text-align: center; }
+#mash i { display: block; height: 6px; margin-top: 6px; background: var(--gold); width: 0; }
+
+/* ---- スマホの操作 ---- */
+#touch { position: fixed; inset: 0; z-index: 6; touch-action: none; }
+.stick { position: absolute; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.25); background: rgba(0, 0, 0, 0.15); opacity: 0; pointer-events: none; }
+.stick.on { opacity: 1; }
+.stick i { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; border-radius: 50%; background: rgba(255, 255, 255, 0.3); transform: translate(-50%, -50%); }
+#touch button { position: absolute; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.35); background: rgba(20, 12, 12, 0.45); font-size: 13px; letter-spacing: 0; padding: 0; text-shadow: 0 1px 2px #000; touch-action: none; }
+#touch button.down { background: rgba(200, 60, 40, 0.55); }
+.btns { position: absolute; right: var(--safe-r); bottom: var(--safe-b); width: 300px; height: 260px; pointer-events: none; }
+.btns button { pointer-events: auto; }
+.b-fire { right: 22px; bottom: 26px; width: 92px; height: 92px; font-size: 17px !important; background: rgba(120, 20, 16, 0.5) !important; }
+.b-aim { right: 128px; bottom: 34px; width: 70px; height: 70px; }
+.b-aim.on { background: rgba(200, 60, 40, 0.55) !important; }
+.b-reload { right: 120px; bottom: 116px; width: 56px; height: 56px; }
+.b-knife { right: 40px; bottom: 132px; width: 56px; height: 56px; }
+.b-switch { right: 186px; bottom: 112px; width: 52px; height: 52px; }
+.b-heal { right: 206px; bottom: 36px; width: 52px; height: 52px; }
+.b-action { right: 104px; bottom: 196px; width: 78px; height: 78px; font-size: 16px !important; background: rgba(160, 110, 30, 0.6) !important; border-color: #ffd080 !important; }
+.b-pause { right: calc(10px + var(--safe-r)); top: calc(8px + var(--safe-t)); width: 42px; height: 42px; border-radius: 6px !important; }
+
+#rotate { position: fixed; inset: 0; z-index: 50; background: #000; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+@media (orientation: landscape) { #rotate { display: none !important; } }
+@media (max-height: 420px) {
+  .screen h1 { font-size: 40px; }
+  .menu { gap: 6px; } .menu button { padding: 8px 18px; }
+  .story { font-size: 15px; line-height: 1.7; }
+  .hpbar { width: 120px; }
+}

@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#333}canvas{display:block}</style></head>
+<body><canvas id="view"></canvas>
+<script type="module">
+import { THREE, scene, camera, makeRenderer, renderer } from '../../js/engine.js';
+import { loadVRM, prepareZombieMaster, cloneZombie } from '../../js/vrm.js';
+import { posePlayer, poseZombie } from '../../js/anim.js';
+scene.fog = null; scene.background = new THREE.Color('#556');
+makeRenderer();
+const q = new URLSearchParams(location.search);
+const poses = (q.get('p') || 'idle,aim,sg,knife,kick,reload').split(',');
+const pl = await loadVRM('../../assets/vrm/player/black.vrm');
+const base = { t: 0, phase: 0, move: 0, run: 0, aim: 0, pitch: 0, weapon: 'hg', recoil: 0, reload: 0, reloadW: 0, knife: 0, knifeW: 0, kick: 0, hurt: 0, heal: 0, grab: 0, down: 0 };
+const P = { idle: {}, walk: { move: 1, phase: 1.2 }, run: { move: 1, run: 1, phase: 1.2 }, aim: { aim: 1 }, aimup: { aim: 1, pitch: 0.5 }, sg: { aim: 1, weapon: 'sg' }, knife: { knifeW: 1, knife: 0.45 }, kick: { kick: 0.45 }, reload: { reloadW: 1, reload: 0.4 }, heal: { heal: 0.5 }, hurt: { hurt: 1 }, grab: { grab: 1 }, down: { down: 1 } };
+const zm = prepareZombieMaster(await loadVRM('../../assets/vrm/zombie/' + (q.get('z') || 'z_m1') + '.vrm'));
+const zb = { t: 1, phase: 0, move: 0, style: 'reach', tilt: 0.25, raise: 0, lunge: 0, grab: 0, stagger: 0, kneel: 0, down: 0, roar: 0 };
+const Z = { zwalk: { move: 1, phase: 1.2 }, zlimp: { move: 1, phase: 1.2, style: 'limp' }, zraise: { raise: 1 }, zlunge: { lunge: 1 }, zgrab: { grab: 1 }, zstag: { stagger: 1 }, zkneel: { kneel: 1 }, zroar: { roar: 1 }, zdown: { down: 1 } };
+const side = q.get('side');
+poses.forEach((name, i) => {
+  let obj;
+  if (name.startsWith('z')) {
+    const c = cloneZombie(zm); poseZombie(zm, { ...zb, ...Z[name] }); zm.humanoid.update(); c.sync(); obj = c.scene;
+  } else {
+    // 主人公は1体しかないので、その都度姿勢をつけて複製を作る
+    posePlayer(pl, { ...base, ...P[name] }); pl.humanoid.update();
+    const c = cloneZombie(pl); c.sync(); obj = c.scene;
+  }
+  const g = new THREE.Group(); g.add(obj); g.position.x = (i - (poses.length - 1) / 2) * 1.3;
+  if (side) g.rotation.y = Math.PI / 2 * +side;
+  scene.add(g);
+});
+const grid = new THREE.GridHelper(20, 20); scene.add(grid);
+camera.position.set(0, 1.2, 5.5); camera.lookAt(0, 0.9, 0);
+renderer.render(scene, camera);
+document.title = 'ready';
+</script></body></html>
