@@ -58,7 +58,33 @@ scene.add(hemi, sun, sun.target);
 // 銃口の光と焚き火の光。光の数が変わると材質の作り直しが起きるので、いつも置いておき強さだけ変える
 export const flashLight = new THREE.PointLight('#ffcf8a', 0, 9, 2);
 export const fireLight = new THREE.PointLight('#ff8a3a', 0, 22, 1.6);
-scene.add(flashLight, fireLight);
+// 懐中電灯（暗い場所で主人公が照らす）と、屋内のろうそく2か所
+export const torch = new THREE.SpotLight('#fff2dc', 0, 26, 0.48, 0.45, 1.4);
+export const candles = [new THREE.PointLight('#ffa050', 0, 16, 1.5), new THREE.PointLight('#ffa050', 0, 16, 1.5)];
+scene.add(flashLight, fireLight, torch, torch.target, ...candles);
+
+// 場所ごとの空気（霧・光）。region：描く地図のまとまり
+export const ENV = {
+  village: { fog: '#5a4a52', density: 0.028, hemi: ['#c9a6a0', '#2c2a2a', 1.15], sun: 1.5, fire: true, torch: false, exposure: 1.05 },
+  church: { fog: '#1a1216', density: 0.03, hemi: ['#8a7080', '#2a2024', 0.95], sun: 0, fire: false, torch: false, exposure: 1.25 },
+  crypt: { fog: '#060507', density: 0.055, hemi: ['#5a5068', '#141016', 0.5], sun: 0, fire: false, torch: true, exposure: 1.3 },
+  ossuary: { fog: '#0c0809', density: 0.04, hemi: ['#7a5a5a', '#181010', 0.6], sun: 0, fire: false, torch: true, exposure: 1.25 },
+};
+export const env = { name: 'village', torch: false };
+export function setEnv(name) {
+  const e = ENV[name];
+  env.name = name; env.torch = e.torch;
+  FOG_COLOR.set(e.fog);
+  scene.background.set(e.fog);
+  scene.fog.color.set(e.fog); scene.fog.density = e.density;
+  hemi.color.set(e.hemi[0]); hemi.groundColor.set(e.hemi[1]); hemi.intensity = e.hemi[2];
+  sun.intensity = e.sun;
+  if (!e.fire) fireLight.intensity = 0;
+  for (const c of candles) c.intensity = 0;
+  torch.intensity = 0;
+  if (renderer) renderer.toneMappingExposure = e.exposure;
+  return e;
+}
 
 // ---- プログラムで描く画像 ----
 let seed = 11;

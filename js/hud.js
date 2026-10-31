@@ -52,9 +52,10 @@ export function timer(sec) {
   const s = Math.max(0, Math.ceil(sec));
   el.timer.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
-export function bossBar(z) {
+export function bossBar(z, name) {
   if (!z) { el.bossbar.classList.add('hidden'); return; }
   el.bossbar.classList.remove('hidden');
+  if (name) put('bossname', name, v => el.bossbar.querySelector('span').textContent = v);
   el.bosshp.style.width = Math.max(0, z.hp / z.maxHp * 100) + '%';
 }
 let hintT = 0;

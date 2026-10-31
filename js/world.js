@@ -6,6 +6,12 @@ import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 // 当たり判定
 // boxes：{ x1, z1, x2, z2, h, id }（地面から高さ h までの箱）
 // circles：{ x, z, r, h, id }（円柱）
+// 地図のまとまり（村／教会の中）。今いる方だけを描く
+export const regions = { village: new THREE.Group(), church: new THREE.Group() };
+scene.add(regions.village, regions.church);
+let target = regions.village;
+export function setTarget(g) { target = g; }
+
 export const boxes = [];
 export const circles = [];
 const removed = new Set();   // 開いた門・壊れた木箱
@@ -22,25 +28,25 @@ function addStatic(geo, material, matrix) {
   if (!batches.has(material)) batches.set(material, []);
   batches.get(material).push(g);
 }
-function flushStatic() {
+export function flushStatic() {
   for (const [material, list] of batches) {
     const merged = mergeGeometries(list, false);
     const m = new THREE.Mesh(merged, material);
     m.castShadow = true; m.receiveShadow = true;
     m.matrixAutoUpdate = false;
-    scene.add(m);
+    target.add(m);
     list.forEach(g => g.dispose());
   }
   batches.clear();
 }
 const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler(), ONE = new THREE.Vector3(1, 1, 1);
-function place(geo, material, x, y, z, ry = 0, rx = 0, rz = 0) {
+export function place(geo, material, x, y, z, ry = 0, rx = 0, rz = 0) {
   tmpE.set(rx, ry, rz); tmpQ.setFromEuler(tmpE);
   tmpM.compose(new THREE.Vector3(x, y, z), tmpQ, ONE);
   addStatic(geo, material, tmpM);
 }
 // 面ごとの画像の繰り返しを、箱の大きさに合わせる（tile：画像1枚が何 m か。0 なら面に1枚）
-function boxGeo(w, h, d, tile = 0) {
+export function boxGeo(w, h, d, tile = 0) {
   const g = new THREE.BoxGeometry(w, h, d);
   if (tile) {
     const uv = g.attributes.uv;
@@ -54,7 +60,7 @@ function boxGeo(w, h, d, tile = 0) {
   return g;
 }
 // 箱を置く（y は底面の高さ）。solid：当たり判定を付ける
-function box(w, h, d, material, x, y, z, { tile = 0, solid = true, ry = 0, id } = {}) {
+export function box(w, h, d, material, x, y, z, { tile = 0, solid = true, ry = 0, id } = {}) {
   place(boxGeo(w, h, d, tile), material, x, y + h / 2, z, ry);
   if (solid) {
     const sw = Math.abs(ry % Math.PI) > 0.7 && Math.abs(ry % Math.PI) < 2.4 ? d : w;
@@ -62,12 +68,12 @@ function box(w, h, d, material, x, y, z, { tile = 0, solid = true, ry = 0, id } 
     boxes.push({ x1: x - sw / 2, x2: x + sw / 2, z1: z - sd / 2, z2: z + sd / 2, h: y + h, id });
   }
 }
-function cylinder(r1, r2, h, material, x, y, z, seg = 8, solid = true) {
+export function cylinder(r1, r2, h, material, x, y, z, seg = 8, solid = true) {
   place(new THREE.CylinderGeometry(r1, r2, h, seg), material, x, y + h / 2, z);
   if (solid) circles.push({ x, z, r: Math.max(r1, r2), h: y + h });
 }
 // 切妻屋根（棟が x 方向）。w：x の長さ、d：z の奥行き、rh：屋根の高さ
-function roofGeo(w, d, rh) {
+export function roofGeo(w, d, rh) {
   const hw = w / 2, hd = d / 2;
   const p = [
     // 南の斜面
@@ -132,15 +138,15 @@ function fence(x1, z1, x2, z2, { h = 1.2, id } = {}) {
 }
 
 // 石垣
-function wall(x1, z1, x2, z2, h = 1.6) {
+export function wall(x1, z1, x2, z2, h = 1.6) {
   const w = Math.abs(x2 - x1) || 0.7, d = Math.abs(z2 - z1) || 0.7;
   box(w, h, d, M.stone, (x1 + x2) / 2, 0, (z1 + z2) / 2, { tile: 2 });
 }
 
 // ---- 木（同じ形をまとめて描く） ----
 const trees = [];
-function tree(x, z, s = 1, solid = true) { trees.push({ x, z, s: s * (0.8 + rand() * 0.5), ry: rand() * 6 }); if (solid) circles.push({ x, z, r: 0.35 * s, h: 8 }); }
-function treeLine(x1, z1, x2, z2, step = 2.6, jitter = 1.2) {
+export function tree(x, z, s = 1, solid = true) { trees.push({ x, z, s: s * (0.8 + rand() * 0.5), ry: rand() * 6 }); if (solid) circles.push({ x, z, r: 0.35 * s, h: 8 }); }
+export function treeLine(x1, z1, x2, z2, step = 2.6, jitter = 1.2) {
   const len = Math.hypot(x2 - x1, z2 - z1), n = Math.ceil(len / step);
   for (let i = 0; i <= n; i++) {
     const t = i / n;
@@ -160,18 +166,18 @@ function flushTrees() {
     m4.compose(new THREE.Vector3(tr.x, 0, tr.z), tmpQ, new THREE.Vector3(tr.s, tr.s * (0.9 + rand() * 0.3), tr.s));
     t.setMatrixAt(i, m4); c.setMatrixAt(i, m4);
   });
-  for (const m of [t, c]) { m.castShadow = true; m.receiveShadow = true; scene.add(m); }
+  for (const m of [t, c]) { m.castShadow = true; m.receiveShadow = true; target.add(m); }
 }
 
 // 地面の模様（土の道・草地）
 function ground() {
   const g = new THREE.PlaneGeometry(260, 260).rotateX(-Math.PI / 2);
   const m = new THREE.Mesh(g, mat('#ffffff', { map: tiled(TEX.grass, 70, 70) }));
-  m.receiveShadow = true; scene.add(m);
+  m.receiveShadow = true; target.add(m);
   const patch = (x1, z1, x2, z2, material, y = 0.015) => {
     const w = x2 - x1, d = z2 - z1;
     const p = new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), material);
-    p.position.set((x1 + x2) / 2, y, (z1 + z2) / 2); p.receiveShadow = true; scene.add(p);
+    p.position.set((x1 + x2) / 2, y, (z1 + z2) / 2); p.receiveShadow = true; target.add(p);
   };
   patch(-5, 22, 5, 82, mat('#ffffff', { map: tiled(TEX.dirt, 2.5, 15) }));
   patch(-22, -22, 22, 24, mat('#ffffff', { map: tiled(TEX.dirt, 11, 11.5) }), 0.02);
@@ -197,28 +203,28 @@ function well(x, z) {
   place(new THREE.BoxGeometry(2.0, 0.1, 0.12), M.darkWood, x, 2.0, z);
   place(roofGeo(2.2, 1.6, 0.6), M.roof, x, 2.0, z);
 }
-function grave(x, z) {
+export function grave(x, z) {
   const s = 0.8 + rand() * 0.4;
   place(new THREE.BoxGeometry(0.6 * s, 0.9 * s, 0.18), M.stone, x, 0.45 * s, z, (rand() - 0.5) * 0.3, (rand() - 0.5) * 0.15);
   circles.push({ x, z, r: 0.35, h: 0.9 });
 }
-function cross(x, y, z, s = 1) {
+export function cross(x, y, z, s = 1) {
   place(new THREE.BoxGeometry(0.12 * s, 1.2 * s, 0.12 * s), M.iron, x, y + 0.6 * s, z);
   place(new THREE.BoxGeometry(0.7 * s, 0.12 * s, 0.12 * s), M.iron, x, y + 0.85 * s, z);
 }
 
 // 壊せる物（木箱・樽）。撃つかナイフで壊すと中身が出る
 export const breakables = [];
-function crate(x, z, drop) {
+export function crate(x, z, drop) {
   const g = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), mat('#ffffff', { map: TEX.planks }));
-  g.position.set(x, 0.4, z); g.rotation.y = rand(); g.castShadow = true; g.receiveShadow = true; scene.add(g);
+  g.position.set(x, 0.4, z); g.rotation.y = rand(); g.castShadow = true; g.receiveShadow = true; target.add(g);
   const id = 'crate' + breakables.length;
   boxes.push({ x1: x - 0.45, x2: x + 0.45, z1: z - 0.45, z2: z + 0.45, h: 0.8, id });
   breakables.push({ id, mesh: g, x, z, y: 0.4, r: 0.5, hp: 1, drop });
 }
-function barrel(x, z, drop) {
+export function barrel(x, z, drop) {
   const g = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 1.0, 10), mat('#5a3e26', { map: TEX.planks }));
-  g.position.set(x, 0.5, z); g.castShadow = true; g.receiveShadow = true; scene.add(g);
+  g.position.set(x, 0.5, z); g.castShadow = true; g.receiveShadow = true; target.add(g);
   const id = 'barrel' + breakables.length;
   circles.push({ x, z, r: 0.42, h: 1.0, id });
   breakables.push({ id, mesh: g, x, z, y: 0.5, r: 0.5, hp: 1, drop });
@@ -230,17 +236,17 @@ export function resetBreakables() {
 
 // 門（閉まっている間は通れない）
 export const gates = {};
-function gate(name, x1, x2, z, open = false) {
+export function gate(name, x1, x2, z, open = false, { bar = M.darkWood, rail = M.wood, h = 2.2, thick = 0.2 } = {}) {
   const g = new THREE.Group();
   const w = x2 - x1;
   for (let i = 0; i <= Math.round(w / 0.5); i++) {
-    const p = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.2, 0.14), M.darkWood);
-    p.position.set(x1 + i * 0.5, 1.1, z); p.castShadow = true; g.add(p);
+    const p = new THREE.Mesh(new THREE.BoxGeometry(thick, h, 0.14), bar);
+    p.position.set(x1 + i * 0.5, h / 2, z); p.castShadow = true; g.add(p);
   }
-  for (const y of [0.5, 1.7]) { const b = new THREE.Mesh(new THREE.BoxGeometry(w, 0.18, 0.1), M.wood); b.position.set((x1 + x2) / 2, y, z + 0.1); g.add(b); }
-  scene.add(g);
+  for (const y of [0.5, h - 0.5]) { const b = new THREE.Mesh(new THREE.BoxGeometry(w, 0.18, 0.1), rail); b.position.set((x1 + x2) / 2, y, z + 0.1); g.add(b); }
+  target.add(g);
   const id = 'gate-' + name;
-  boxes.push({ x1, x2, z1: z - 0.3, z2: z + 0.3, h: 2.2, id });
+  boxes.push({ x1, x2, z1: z - 0.3, z2: z + 0.3, h, id });
   gates[name] = { g, id, set(o) { g.visible = !o; o ? removeCollider(id) : restoreCollider(id); } };
   if (open) { g.visible = false; removed.add(id); }
 }
@@ -272,12 +278,12 @@ function makeBonfire() {
     f.userData.base = 1.2 + (i % 3) * 0.25;
     fire.add(f);
   }
-  fire.position.set(x, 0, z); scene.add(fire);
+  fire.position.set(x, 0, z); target.add(fire);
   bonfire.fire = fire;
   fireLight.position.set(x, 1.8, z);
 }
 export function updateWorld(t) {
-  if (!bonfire.fire) return;
+  if (!bonfire.fire || !regions.village.visible) return;
   bonfire.fire.children.forEach((f, i) => {
     const s = 1 + Math.sin(t * (9 + i * 3) + i) * 0.14 + Math.sin(t * 23 + i * 2) * 0.07, b = f.userData.base;
     f.scale.set(b * 0.75 * (2 - s), b * 1.4 * s, 1);
@@ -288,7 +294,8 @@ export function updateWorld(t) {
 }
 
 // ---- 道案内の網目（1m 四方）。ゾンビはプレイヤーまでの歩数が小さい方へ進む ----
-export const NAV = { x0: -45, z0: -100, w: 90, h: 190 };
+// 村（x -45〜45）と教会の中（x 125〜175）の両方を覆う
+export const NAV = { x0: -45, z0: -130, w: 225, h: 220 };
 let blocked = new Uint8Array(NAV.w * NAV.h);
 const dist = new Int32Array(NAV.w * NAV.h);
 export function rebuildNav() {
@@ -526,8 +533,8 @@ export function buildWorld() {
 
   flushStatic();
   flushTrees();
-  rebuildNav();
 }
 
-// 物陰の判定に使う：主人公の位置がどの区画か
-export function areaOf(z) { return z > 24 ? 'path' : z > -23 ? 'plaza' : z > -42 ? 'lane' : 'yard'; }
+
+// 今いる地図のまとまりだけを描く
+export function showRegion(name) { for (const k in regions) regions[k].visible = k === name; }

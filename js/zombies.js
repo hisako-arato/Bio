@@ -17,7 +17,15 @@ export const TYPES = {
   f1: { model: 'z_f1', hp: 4, speed: 1.9, fast: 0.6, style: 'reach', pitch: 1.4 },
   f2: { model: 'z_f2', hp: 4, speed: 1.6, fast: 0.4, style: 'limp', pitch: 1.3 },
   brute: { model: 'z_brute', hp: 48, speed: 1.45, fast: 0.2, style: 'limp', pitch: 0.55, scale: 1.38, boss: true },
+  // 床を這う（脚をやられた村人）。背が低く、蹴りでは倒れない。ナイフがよく効く
+  crawler: { model: 'z_m2', hp: 4, speed: 0.75, fast: 0, style: 'limp', pitch: 0.7, crawl: true },
+  crawlerF: { model: 'z_f1', hp: 3, speed: 0.95, fast: 0, style: 'limp', pitch: 1.2, crawl: true },
+  // 第2章のボス：墓守
+  warden: { model: 'z_father', hp: 60, speed: 1.5, fast: 0.2, style: 'reach', pitch: 0.5, scale: 1.45, boss: true },
 };
+// 這うゾンビの頭の位置（足元から前へ）
+const headOf = (z, out) => { out.x = z.pos.x + Math.sin(z.facing) * 1.35 * z.scale; out.z = z.pos.z + Math.cos(z.facing) * 1.35 * z.scale; return out; };
+const _h = { x: 0, z: 0 };
 export const masters = {};   // model → VRM（姿勢をつける元）
 export const zombies = [];   // 今いるゾンビ
 const pool = {};             // model → 使い終わった複製
@@ -75,7 +83,7 @@ export function damage(z, amount, part, dir, at, kind = 'hg') {
   if (part === 'leg') dmg *= 0.8;
   if (part === 'arm') dmg *= 0.7;
   // 倒れている相手にはナイフがよく効く
-  if (kind === 'knife' && (z.state === 'down' || z.state === 'stunned')) dmg *= boss ? 4 : 2.5;
+  if (kind === 'knife' && (z.state === 'down' || z.state === 'stunned' || z.T.crawl)) dmg *= boss ? 4 : 2.5;
   // 頭への会心（大男には無い）
   const crit = !boss && part === 'head' && (kind === 'hg' ? Math.random() < 0.18 : kind === 'sg' && at && at.distanceTo(player.pos) < 4);
   if (crit) dmg = z.hp + 1;
@@ -93,7 +101,7 @@ export function damage(z, amount, part, dir, at, kind = 'hg') {
     if (z.hp < z.maxHp * 0.5 && !z.enraged) { z.enraged = true; setState(z, 'roar'); z.speed *= 1.25; }
     return;
   }
-  if (z.state === 'down' || z.state === 'kneel') return;
+  if (z.state === 'down' || z.state === 'kneel' || z.T.crawl) return;
   if (z.state === 'grabbing') { releaseGrab(z); setState(z, 'stagger'); return; }
   if (kind === 'sg') { setState(z, dmg > 2.2 ? 'stagger' : 'stagger'); z.pushX = dir.x * 2.5; z.pushZ = dir.z * 2.5; return; }
   if (part === 'leg') { z.legDmg += 1; if (z.legDmg >= 2 || Math.random() < 0.5) { z.legDmg = 0; setState(z, 'kneel'); } return; }
@@ -131,7 +139,7 @@ export function kickHit(px, pz, facing) {
       continue;
     }
     damage(z, 3, 'body', dir, at, 'kick');
-    if (z.hp > 0) { setState(z, 'down'); z.fallDir = (dx * Math.sin(z.facing) + dz * Math.cos(z.facing)) > 0 ? 1 : -1; z.pushX = dx / d * 4; z.pushZ = dz / d * 4; }
+    if (z.hp > 0 && !z.T.crawl) { setState(z, 'down'); z.fallDir = (dx * Math.sin(z.facing) + dz * Math.cos(z.facing)) > 0 ? 1 : -1; z.pushX = dx / d * 4; z.pushZ = dz / d * 4; }
   }
   return hit;
 }
@@ -169,11 +177,11 @@ export function rayZombies(o, d, maxT) {
   let best = maxT, hit = null, part = null;
   for (const z of zombies) {
     if (z.state === 'dying' || z.state === 'dead' || !z.rig.g.visible) continue;
-    // 体全体の球で先にふるい落とす
-    _oc.set(z.pos.x, 0.9 * z.scale, z.pos.z).sub(o);
+    // 体全体の球（胸のあたり）で先にふるい落とす
+    _oc.copy(z.rig.c.parts[1].c).sub(o);
     const tc = _oc.dot(d);
     if (tc < 0 || tc > best + 2) continue;
-    if (_oc.lengthSq() - tc * tc > 1.4 * z.scale * z.scale) continue;
+    if (_oc.lengthSq() - tc * tc > 1.8 * z.scale * z.scale) continue;
     for (const p of z.rig.c.parts) {
       if (p.kind === 'head' && z.headless) continue;
       _oc.copy(p.c).sub(o);
@@ -234,7 +242,7 @@ export function updateZombies(dt, hooks) {
     if (z.state !== 'dead') collide(z.pos, 0.3 * z.scale);
     z.rig.g.rotation.y = z.facing;
     // 画面に映るか（映らないゾンビは姿勢の計算も省く）
-    _sphere.center.set(z.pos.x, 0.9 * z.scale, z.pos.z); _sphere.radius = 1.4 * z.scale;
+    _sphere.center.set(z.pos.x, 0.9 * z.scale, z.pos.z); _sphere.radius = (z.T.crawl ? 2 : 1.4) * z.scale;
     const dist = camera.position.distanceTo(_sphere.center);
     const visible = dist < 48 && _frustum.intersectsSphere(_sphere);
     z.rig.g.visible = visible;
@@ -256,7 +264,8 @@ function animate(z, dt) {
   a.phase += dt * (z.curSpeed || 0) * (s === 'charge' ? 2.2 : 3.4);
   a.fast = s === 'charge' ? 1 : z.T.fast;
   const to = (k, v, r = 8) => { a[k] += (v - a[k]) * Math.min(1, dt * r); };
-  to('raise', s === 'windup' ? 1 : 0, s === 'windup' ? 5 : 10);
+  a.crawl = z.T.crawl ? 1 : 0;
+  to('raise', s === 'windup' && !z.T.crawl ? 1 : 0, s === 'windup' ? 5 : 10);
   to('lunge', s === 'swipe' || s === 'charge' ? 1 : 0, 14);
   to('grab', s === 'grabbing' ? 1 : 0, 10);
   to('stagger', s === 'stagger' || s === 'stunned' ? 1 : 0, 12);
@@ -267,7 +276,8 @@ function animate(z, dt) {
   if (s === 'down') fall = z.st < 0.45 ? z.st / 0.45 : z.st < 2.0 ? 1 : Math.max(0, 1 - (z.st - 2.0) / 0.9);
   else if (s === 'dying') fall = Math.min(1, (z.st / 0.75) ** 1.6);
   else if (s === 'dead') fall = 1;
-  to('down', fall > 0.5 ? 1 : 0, 8);
+  if (z.T.crawl) { fall = 1; z.fallDir = 1; }
+  to('down', fall > 0.5 && !z.T.crawl ? 1 : 0, 8);
   z.rig.tilt.rotation.x = z.fallDir * fall * Math.PI / 2 * 0.97;
   z.rig.tilt.position.y = fall * 0.12 * z.scale;
   const m = masters[z.T.model];
@@ -327,7 +337,8 @@ function think(z, dt, hooks) {
     case 'chase': {
       if (pDead) { setState(z, 'idle'); break; }
       if (boss) { bossChase(z, dt, dist, facingErr); break; }
-      const near = dist < 1.25 + (z.scale - 1);
+      const hd = z.T.crawl ? Math.hypot(player.pos.x - headOf(z, _h).x, player.pos.z - _h.z) : dist;
+      const near = z.T.crawl ? hd < 0.9 : dist < 1.25 + (z.scale - 1);
       if (near) { face(z, player.pos.x, player.pos.z, dt, 6); z.curSpeed = 0; }
       else stepToward(z, dt, z.speed * (dist > 12 ? 1.15 : 1));
       if (near && facingErr < 0.6 && z.cool <= 0 && player.state !== 'down' && player.invuln <= 0) setState(z, 'windup');
@@ -343,14 +354,15 @@ function think(z, dt, hooks) {
       if (z.st > 0.12 && !z.struck) {
         z.struck = true;
         const reach = boss ? 2.1 : 1.65;
-        if (dist < reach && facingErr < 0.9 && player.invuln <= 0 && ['normal', 'reload', 'heal', 'knife'].includes(player.state)) {
-          if (!boss && !grab.z && Math.random() < 0.3) {
+        const d2 = z.T.crawl ? Math.hypot(player.pos.x - headOf(z, _h).x, player.pos.z - _h.z) + 0.4 : dist;
+        if (d2 < reach && facingErr < 0.9 && player.invuln <= 0 && ['normal', 'reload', 'heal', 'knife'].includes(player.state)) {
+          if (!boss && !z.T.crawl && !grab.z && Math.random() < 0.3) {
             grab.z = z; grab.mash = 0; grab.t = 0;
             setState(z, 'grabbing');
             hooks.grabbed(z);
             break;
           }
-          hooks.hurt(boss ? 26 : 12, z);
+          hooks.hurt(boss ? 26 : z.T.crawl ? 9 : 12, z);
         }
       }
       if (z.st > 0.45) { z.cool = boss ? 1.4 : 1.2 + Math.random() * 0.8; setState(z, 'chase'); }

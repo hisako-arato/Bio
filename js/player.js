@@ -22,7 +22,7 @@ export const player = {
   fall: 0, fallDir: -1,
 };
 export function freshInventory() {
-  return { hgMag: 10, hgAmmo: 20, hgCap: 10, hgPow: 1, sgMag: 0, sgAmmo: 0, sgCap: 5, hasSg: false, herbs: 1, gold: 0 };
+  return { hgMag: 10, hgAmmo: 20, hgCap: 10, hgPow: 1, sgMag: 0, sgAmmo: 0, sgCap: 5, sgPow: 1, hasSg: false, herbs: 1, gold: 0 };
 }
 player.inv = freshInventory();
 

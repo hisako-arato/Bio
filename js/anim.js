@@ -186,6 +186,17 @@ export function poseZombie(vrm, s) {
     mix('leftUpperArm', -0.2, -0.4, -1.2, k); mix('rightUpperArm', 0.3, 0.2, 1.3, k);
     hipsDrop += (0.45 - hipsDrop) * k;
   }
+  // 床を這う（体ごと前へ倒すのは zombies.js）。腕で床をかいて進む
+  if (s.crawl) {
+    const k = Math.sin(p) * a, c = Math.cos(p);
+    mix('hips', 0, 0, 0, 1);
+    mix('spine', -0.18, 0, k * 0.08, 1); mix('chest', -0.1, 0, 0, 1); mix('neck', -0.35, 0, 0, 1); mix('head', -0.45, Math.sin(s.t * 0.8) * 0.2, s.tilt * 0.5, 1);
+    mix('leftUpperArm', -0.1, -0.35, 1.2 + k * 0.4, 1); mix('leftLowerArm', 0, -0.35 - Math.max(0, c) * 0.7 * a, 0, 1);
+    mix('rightUpperArm', -0.1, 0.35, -1.2 + k * 0.4, 1); mix('rightLowerArm', 0, 0.35 + Math.max(0, -c) * 0.7 * a, 0, 1);
+    mix('leftUpperLeg', 0.05 + k * 0.12, 0, 0.08, 1); mix('rightUpperLeg', 0.05 - k * 0.12, 0, -0.08, 1);
+    mix('leftLowerLeg', 0.35 + Math.max(0, k) * 0.4, 0, 0, 1); mix('rightLowerLeg', 0.2 + Math.max(0, -k) * 0.4, 0, 0, 1);
+    hipsDrop = 0;
+  }
   // 倒れている（体ごと傾けるのは zombies.js）
   if (s.down > 0) {
     const d = s.down;

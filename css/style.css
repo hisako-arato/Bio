@@ -120,3 +120,25 @@ button { font: inherit; color: inherit; }
   .story { font-size: 15px; line-height: 1.7; }
   .hpbar { width: 120px; }
 }
+
+/* ---- 会話・ファイル・暗転 ---- */
+#talk { position: fixed; left: 50%; bottom: calc(14px + var(--safe-b)); transform: translateX(-50%); width: min(820px, calc(100% - 32px)); z-index: 15;
+  background: rgba(10, 6, 8, 0.86); border: 1px solid rgba(200, 160, 120, 0.35); padding: 12px 18px 14px; min-height: 92px; cursor: pointer; text-align: left; }
+#talk .who { color: var(--gold); font-size: 14px; letter-spacing: 0.15em; margin-bottom: 4px; }
+#talk .text { font-size: 17px; line-height: 1.7; white-space: pre-wrap; }
+#talk.narration .text { color: #d8cabc; font-style: italic; }
+#talk .skip { position: absolute; right: 8px; top: -34px; background: rgba(10, 6, 8, 0.7); border: 1px solid #5a3a32; padding: 4px 12px; font-size: 13px; cursor: pointer; }
+#fileview { position: fixed; inset: 0; z-index: 25; background: rgba(0, 0, 0, 0.75); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  padding: calc(16px + var(--safe-t)) calc(16px + var(--safe-r)) calc(16px + var(--safe-b)) calc(16px + var(--safe-l)); }
+#fileview .paper { background: #d8ccb4; color: #2a2018; width: min(560px, 100%); max-height: 72vh; overflow-y: auto; padding: 20px 26px; box-shadow: 0 6px 30px #000; text-align: left; }
+#fileview h2 { margin: 0 0 10px; font-size: 20px; letter-spacing: 0.15em; border-bottom: 1px solid #8a7a60; padding-bottom: 6px; }
+#fileview .body { white-space: pre-wrap; line-height: 1.9; font-size: 16px; }
+#fileview .close { background: #6a1a16; border: 1px solid #b8443a; padding: 9px 28px; letter-spacing: 0.2em; cursor: pointer; }
+#fileList { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; width: min(640px, 100%); }
+#fileList button { background: rgba(40, 26, 26, 0.85); border: 1px solid #5a3a32; padding: 10px 14px; font-size: 15px; cursor: pointer; text-align: left; }
+#fileList button:disabled { opacity: 0.4; }
+#files h2 small { font-size: 14px; color: var(--dim); letter-spacing: 0; }
+#fade { position: fixed; inset: 0; z-index: 18; background: #000; opacity: 0; pointer-events: none; transition: opacity .5s; display: flex; align-items: center; justify-content: center; }
+#fade.on { opacity: 1; pointer-events: auto; }
+#fade p { font-size: 26px; letter-spacing: 0.3em; color: #e8d6c0; }
+#intro h2 { color: var(--gold); }

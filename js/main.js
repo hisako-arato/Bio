@@ -1,27 +1,31 @@
 // 起動・読み込み・画面の切り替え・毎フレームの処理
-import { scene, camera, makeRenderer, pickQuality, isTouch } from './engine.js';
-import { buildWorld, updateWorld } from './world.js';
+import { scene, camera, makeRenderer, pickQuality, isTouch, setEnv } from './engine.js';
+import { buildWorld, updateWorld, rebuildNav, regions } from './world.js';
+import { buildChurch } from './world2.js';
 import { loadVRM, prepareZombieMaster } from './vrm.js';
 import { player, setupPlayer, updatePlayer } from './player.js';
 import { masters, TYPES, updateZombies } from './zombies.js';
-import { updateCombat, stats, resetStats } from './combat.js';
+import { updateCombat, stats } from './combat.js';
 import { updateCamera, cam } from './camera.js';
 import { updateFx } from './fx.js';
 import { updateItems } from './items.js';
 import { updateHud } from './hud.js';
-import { game, newGame, continueGame, updateGame, contextPrompt, zombieHooks, SHOP, jumpTo } from './game.js';
+import { game, newGame, startChapter, continueGame, updateGame, contextPrompt, zombieHooks, SHOP, jumpTo, loadSave, saveForChapter, CHAPTER_LIST } from './game.js';
+import { playScene, updateTalk, showFile, fillFileList } from './talk.js';
+import { CHAPTERS } from './story.js';
+import { updateTorch } from './chapters/ch2.js';
 import { input, settings, saveSettings, consume, endFrame, resetInput, lockPointer, unlockPointer } from './input.js';
 import { grab } from './zombies.js';
 import { unlockAudio, startAmbient, setListener, setVolume, sfx } from './audio.js';
 
 const $ = id => document.getElementById(id);
-const screens = ['loading', 'title', 'howto', 'settings', 'intro', 'pause', 'shop', 'death', 'result', 'error'];
+const screens = ['loading', 'title', 'howto', 'settings', 'intro', 'pause', 'shop', 'death', 'result', 'error', 'files'];
 function show(id) { for (const s of screens) $(s).classList.toggle('hidden', s !== id); }
-let mode = 'menu';   // menu | play | paused
+let mode = 'menu';   // menu | play | paused | talk（会話・ファイル） | fade（暗転）
 let renderer;
 
-function setPlaying(on) {
-  $('hud').classList.toggle('hidden', !on);
+function setPlaying(on, hud = on) {
+  $('hud').classList.toggle('hidden', !hud);
   $('touch').classList.toggle('hidden', !on || !input.usingTouch);
   input.enabled = on;
   if (!on) resetInput();
@@ -32,6 +36,8 @@ async function boot() {
   pickQuality(settings.quality);
   renderer = makeRenderer();
   buildWorld();
+  buildChurch();
+  rebuildNav();
   // 建物の影を一度だけ描く
   renderer.shadowMap.needsUpdate = true;
   const models = [...new Set(Object.values(TYPES).map(t => t.model))];
@@ -47,7 +53,10 @@ async function boot() {
   // 最初の描画で材質を組み立てておく（遊び始めてから止まらないように）
   player.pos.set(0, 0, 74);
   updateCamera(0, player.pos, 0, player.headY);
+  regions.church.visible = true;
   renderer.compile(scene, camera);
+  regions.church.visible = false;
+  refreshTitle();
   show('title');
   document.title = 'ready';
   requestAnimationFrame(loop);
@@ -60,8 +69,17 @@ function loop(now) {
   let dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now;
   if (mode === 'play') {
-    if (consume('pause')) { pause(); }
+    if (queue.length) runQueue();
+    else if (consume('pause')) { pause(); }
     else step(dt);
+  } else if (mode === 'talk' || mode === 'fade') {
+    // 会話・暗転の間も、主人公の姿勢・カメラ・炎や血は動かす
+    updateTalk(dt);
+    updatePlayer(dt);
+    updateCamera(dt, player.pos, player.aimW, player.headY + 0.05 - player.fall * 1.0);
+    updateWorld(game.t += dt);
+    updateFx(dt);
+    updateItems(dt);
   } else if (mode === 'menu') {
     // タイトルの裏：村をゆっくり見回す
     attract += dt * 0.05;
@@ -77,6 +95,7 @@ function step(dt) {
   updatePlayer(dt);
   updateZombies(dt, zombieHooks);
   updateGame(dt);
+  updateTorch();
   updateCamera(dt, player.pos, player.aimW, player.headY + 0.05 - player.fall * 1.0);
   updateWorld(game.t);
   updateFx(dt);
@@ -102,27 +121,95 @@ function pause() {
 }
 function toTitle() {
   mode = 'menu';
+  refreshTitle();
+  setPlace0();
   setPlaying(false);
   unlockPointer();
   show('title');
 }
+// タイトルの裏は村を映す
+function setPlace0() { regions.village.visible = true; regions.church.visible = false; setEnv('village'); }
 async function enterFullscreen() {
   if (!isTouch) return;
   try { if (!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch (e) {}
   try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch (e) {}
 }
 
+// ---- 会話・ファイル・暗転（遊んでいる最中に起きる。終わると遊びに戻る） ----
+const queue = [];   // { kind: 'talk'|'file', id, done }
+game.sayHook = id => new Promise(done => { queue.push({ kind: 'talk', id, done }); if (mode === 'play') runQueue(); });
+game.showFileHook = id => new Promise(done => { queue.push({ kind: 'file', id, done }); if (mode === 'play') runQueue(); });
+function runQueue() {
+  const q = queue.shift();
+  if (!q) return;
+  mode = 'talk';
+  setPlaying(false, q.kind === 'talk');
+  unlockPointer();
+  const p = q.kind === 'talk' ? playScene(q.id) : showFile(q.id);
+  p.then(() => {
+    q.done();
+    if (mode !== 'talk') return;
+    if (queue.length) { runQueue(); return; }
+    mode = 'play'; setPlaying(true); lastT = performance.now(); lockPointer();
+  });
+}
+game.fadeHook = (fn, text) => new Promise(done => {
+  mode = 'fade';
+  setPlaying(false);
+  $('fadeText').textContent = text || '';
+  $('fade').classList.add('on');
+  setTimeout(() => {
+    fn();
+    setTimeout(() => {
+      $('fade').classList.remove('on');
+      mode = 'play'; setPlaying(true); lastT = performance.now();
+      done();
+    }, text ? 1100 : 300);
+  }, 550);
+});
+
+// ---- 章の始まりの画面 ----
+let introThen = null;
+function showIntro(chId, then) {
+  const c = CHAPTERS[chId] || {};
+  $('introTitle').textContent = c.title || '';
+  $('introBody').innerHTML = '';
+  for (const line of c.intro || []) { const p = document.createElement('p'); p.textContent = line; $('introBody').append(p); }
+  if (c.goal) { const p = document.createElement('p'); p.className = 'goal'; p.textContent = c.goal; $('introBody').append(p); }
+  introThen = then;
+  show('intro');
+}
+function refreshTitle() {
+  const s = loadSave();
+  $('btnContinueSave').classList.toggle('hidden', !s);
+  $('btnStart').classList.toggle('primary', !s);
+  if (s) $('btnContinueSave').textContent = `つづきから（${(CHAPTERS[s.chapter] || {}).title || s.chapter}）`;
+}
 $('btnStart').onclick = async () => {
   unlockAudio(); startAmbient(); sfx.ui();
   await enterFullscreen();
-  show('intro');
+  showIntro('ch1', () => newGame('ch1'));
+};
+$('btnContinueSave').onclick = async () => {
+  unlockAudio(); startAmbient(); sfx.ui();
+  await enterFullscreen();
+  const s = loadSave();
+  if (!s) { refreshTitle(); return; }
+  continueGame(s);
+  startPlay();
 };
 $('btnGo').onclick = () => {
   sfx.ui();
-  resetStats();
-  newGame();
+  const then = introThen; introThen = null;
   startPlay();
+  if (then) then();
 };
+$('btnFiles').onclick = () => { sfx.ui(); openFiles(); };
+$('btnFilesBack').onclick = () => { sfx.ui(); show('pause'); };
+function openFiles() {
+  fillFileList(game.files, id => showFile(id));
+  show('files');
+}
 let backTo = 'title';
 $('btnHowto').onclick = () => { backTo = 'title'; show('howto'); };
 $('btnSettings').onclick = () => { backTo = 'title'; openSettings(); };
@@ -135,6 +222,11 @@ $('btnQuit').onclick = () => { sfx.ui(); toTitle(); };
 $('btnContinue').onclick = () => { sfx.ui(); continueGame(); startPlay(); };
 $('btnDeathQuit').onclick = () => { sfx.ui(); toTitle(); };
 $('btnResultTitle').onclick = () => { sfx.ui(); toTitle(); };
+$('btnNext').onclick = () => {
+  sfx.ui();
+  const next = $('btnNext').dataset.next;
+  if (next) showIntro(next, () => startChapter(next));
+};
 document.querySelector('.b-pause').addEventListener('touchstart', e => { e.stopPropagation(); e.preventDefault(); pause(); }, { passive: false });
 
 game.onDeath = () => {
@@ -144,15 +236,23 @@ game.onDeath = () => {
   unlockPointer();
   show('death');
 };
-game.onEnd = () => {
+game.onChapterEnd = ch => {
   mode = 'paused';
   setPlaying(false);
   unlockPointer();
+  // 次の章の頭をセーブしておく（ここでやめても、つづきから次の章を遊べる）
+  if (ch.next) saveForChapter(ch.next);
+  const c = CHAPTERS[ch.id] || {};
+  $('resultTitle').textContent = `${c.title || ch.id}　クリア`;
+  $('resultSub').textContent = ch.next ? (c.outro || '') : `${c.outro || ''}　――続きは製作中です。`;
+  $('btnNext').classList.toggle('hidden', !ch.next);
+  $('btnNext').dataset.next = ch.next || '';
+  const par = ch.par || 600;
   const acc = stats.shots ? Math.round(stats.hits / stats.shots * 100) : 0;
   const min = Math.floor(stats.time / 60), sec = Math.floor(stats.time % 60);
   // ランク：時間・命中率・やられた回数
   let score = 0;
-  score += stats.time < 600 ? 2 : stats.time < 900 ? 1 : 0;
+  score += stats.time < par ? 2 : stats.time < par * 1.5 ? 1 : 0;
   score += acc >= 60 ? 2 : acc >= 40 ? 1 : 0;
   score += stats.deaths === 0 ? 2 : stats.deaths < 3 ? 1 : 0;
   const rank = score >= 6 ? 'S' : score >= 4 ? 'A' : score >= 2 ? 'B' : 'C';
@@ -222,7 +322,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) pause
 window.__game = {
   game, player, stats, cam, input,
   sim(sec, fps = 30) { for (let i = 0; i < sec * fps; i++) { step(1 / fps); endFrame(); } },
-  jump(phase) { jumpTo(phase); },
+  jump(ch, phase) { jumpTo(ch, phase); },
   bench(n = 10) { const t = performance.now(); for (let i = 0; i < n; i++) renderer.render(scene, camera); return (performance.now() - t) / n; },
 };
 

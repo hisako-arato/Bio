@@ -19,6 +19,12 @@ const LOOK = {
   },
   gold: () => { const g = new THREE.Group(); for (let i = 0; i < 4; i++) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.02, 10), mat('#e0b040', { emissive: '#4a3000' })); c.position.set((i % 2) * 0.07 - 0.03, 0.02 + i * 0.022, ((i / 2) | 0) * 0.05); g.add(c); } return g; },
   shotgun: () => shotgunMesh(),
+  file: () => {
+    const g = new THREE.Group();
+    const p = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.015, 0.3), mat('#e0d4b8', { emissive: '#3a3020' })); p.position.y = 0.02; p.rotation.y = 0.3; g.add(p);
+    const p2 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.015, 0.3), mat('#cfc2a4')); p2.position.set(0.03, 0.035, 0.02); p2.rotation.y = -0.2; g.add(p2);
+    return g;
+  },
 };
 
 export function shotgunMesh() {
@@ -50,6 +56,6 @@ export function removeItem(it) {
 export function updateItems(dt) {
   for (const it of items) {
     it.t += dt;
-    if (it.kind !== 'shotgun') { it.g.rotation.y += dt * 1.2; it.g.position.y = it.y + 0.04 + Math.sin(it.t * 3) * 0.03; }
+    if (it.kind !== 'shotgun' && it.kind !== 'file') { it.g.rotation.y += dt * 1.2; it.g.position.y = it.y + 0.04 + Math.sin(it.t * 3) * 0.03; }
   }
 }

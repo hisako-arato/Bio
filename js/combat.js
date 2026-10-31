@@ -65,7 +65,7 @@ function fireRay(spread, dmg, kind) {
     // 散弾は遠いほど弱い
     let k = 1;
     if (kind === 'sg') { const dist = hz.z.pos.distanceTo(player.pos); k = dist < 5 ? 1 : Math.max(0.25, 1 - (dist - 5) / 10); }
-    damage(hz.z, dmg * k * (kind === 'hg' ? player.inv.hgPow : 1), hz.part, d.clone(), _p.clone(), kind);
+    damage(hz.z, dmg * k * (kind === 'hg' ? player.inv.hgPow : player.inv.sgPow || 1), hz.part, d.clone(), _p.clone(), kind);
     if (hz.part === 'head') stats.heads++;
     return true;
   }
@@ -310,6 +310,7 @@ export function pickup(it) {
     case 'shells': inv.sgAmmo += it.n; msg = `ショットガンの弾 ×${it.n}`; sfx.pickup(); break;
     case 'herb': inv.herbs += it.n; msg = 'グリーンハーブ'; sfx.pickup(); break;
     case 'gold': inv.gold += it.n; msg = `${it.n} G`; sfx.gold(); break;
+    case 'file': if (hooks.onFile) hooks.onFile(it.n); removeItem(it); return;
     case 'shotgun': inv.hasSg = true; inv.sgMag = inv.sgCap; player.weapon = 'sg'; msg = 'ショットガンを手に入れた'; sfx.pickup(); if (hooks.onShotgun) hooks.onShotgun(); break;
   }
   removeItem(it);
